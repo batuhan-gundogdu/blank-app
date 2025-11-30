@@ -195,7 +195,7 @@ current_labels = current_item['labels']
 # -----------------------------------------------------------------------------
 
 # Header with title and progress
-st.markdown("<h1 class='main-header'>📊 Stance Verification Tool</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>📊 VicVox Stance Verification Tool</h1>", unsafe_allow_html=True)
 
 # Progress section with better styling
 progress_pct = st.session_state.current_index / len(st.session_state.data)
