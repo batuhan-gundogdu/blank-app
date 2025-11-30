@@ -47,6 +47,18 @@ st.markdown("""
         padding: 1rem;
         margin-bottom: 1.5rem;
     }
+    .stCheckbox > label {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    .stButton > button {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+    h3 {
+        color: #1f77b4;
+        margin-top: 1.5rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
