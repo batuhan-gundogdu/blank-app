@@ -46,7 +46,7 @@ st.markdown("""
         padding: 1rem;
         margin-bottom: 1.5rem;
     }
-    .stance-group-box {
+    .stance-group-container {
         background-color: #ffffff;
         padding: 1.5rem;
         border-radius: 10px;
@@ -62,11 +62,106 @@ st.markdown("""
         padding-bottom: 0.5rem;
         border-bottom: 2px solid #667eea;
     }
-    /* Style for content inside group boxes */
-    div.stance-group-box ~ div {
-        margin-left: 0;
+    .stance-checkboxes {
+        padding-top: 0.5rem;
+    }
+    /* Visual styling for checkboxes that appear after group containers */
+    .stance-group-container + div[data-testid="stMarkdownContainer"] {
+        margin-top: -1.5rem;
+        margin-left: 1.5rem;
+        margin-right: 1.5rem;
+    }
+    .stance-group-container + div[data-testid="stCheckbox"] {
+        margin-left: 1.5rem;
+        margin-right: 1.5rem;
     }
     </style>
+""", unsafe_allow_html=True)
+
+# Add JavaScript to move checkboxes inside group containers
+# This runs after Streamlit finishes rendering to properly nest checkboxes
+st.markdown("""
+    <script>
+    (function() {
+        function moveCheckboxesIntoGroups() {
+            const groupContainers = document.querySelectorAll('.stance-group-container');
+            groupContainers.forEach((container) => {
+                const checkboxesDiv = container.querySelector('.stance-checkboxes');
+                if (!checkboxesDiv) return;
+                
+                // Skip if already processed (has moved checkboxes)
+                if (checkboxesDiv.dataset.processed === 'true') return;
+                
+                // Find the next group container or form end
+                let currentElement = container.nextElementSibling;
+                const checkboxesToMove = [];
+                let foundCount = 0;
+                const expectedCount = 2; // Each group has 2 checkboxes
+                
+                while (currentElement && foundCount < expectedCount) {
+                    // Stop if we hit another group container
+                    if (currentElement.classList && currentElement.classList.contains('stance-group-container')) {
+                        break;
+                    }
+                    // Stop if we hit the form separator
+                    if (currentElement.tagName === 'HR') {
+                        break;
+                    }
+                    
+                    // Check if this element contains a checkbox widget
+                    const checkboxWidget = currentElement.querySelector('[data-testid="stCheckbox"]');
+                    if (checkboxWidget) {
+                        checkboxesToMove.push(currentElement);
+                        foundCount++;
+                    }
+                    
+                    currentElement = currentElement.nextElementSibling;
+                }
+                
+                // Move checkboxes into the container
+                checkboxesToMove.forEach(cb => {
+                    checkboxesDiv.appendChild(cb);
+                });
+                
+                // Mark as processed
+                if (checkboxesToMove.length > 0) {
+                    checkboxesDiv.dataset.processed = 'true';
+                }
+            });
+        }
+        
+        // Wait for Streamlit to be ready
+        function waitForStreamlit() {
+            if (window.parent && window.parent.postMessage) {
+                // Streamlit is ready, run the function
+                setTimeout(moveCheckboxesIntoGroups, 100);
+            } else {
+                setTimeout(waitForStreamlit, 50);
+            }
+        }
+        
+        // Run on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', waitForStreamlit);
+        } else {
+            waitForStreamlit();
+        }
+        
+        // Also run after DOM changes (Streamlit reruns)
+        const observer = new MutationObserver(function(mutations) {
+            let shouldRun = false;
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length > 0) {
+                    shouldRun = true;
+                }
+            });
+            if (shouldRun) {
+                setTimeout(moveCheckboxesIntoGroups, 200);
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    })();
+    </script>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
@@ -240,13 +335,19 @@ with col_right:
         user_selections = {}
         
         # Display stances grouped by topic in boxes
-        for group in stance_groups:
-            # Create the group box with title
+        for group_idx, group in enumerate(stance_groups):
+            # Create a unique container ID for this group
+            group_id = f"group_{st.session_state.current_index}_{group_idx}"
+            
+            # Create the complete box structure with title
             st.markdown(
-                f'<div class="stance-group-box">'
+                f'<div class="stance-group-container" id="{group_id}">'
                 f'<div class="stance-group-title">{group["title"]}</div>',
                 unsafe_allow_html=True
             )
+            
+            # Create an inner container div to hold checkboxes
+            st.markdown('<div class="stance-checkboxes">', unsafe_allow_html=True)
             
             # Display checkboxes for stances in this group
             for idx in group["indices"]:
@@ -257,8 +358,8 @@ with col_right:
                     key=f"stance_{st.session_state.current_index}_{idx}"
                 )
             
-            # Close the box div
-            st.markdown('</div>', unsafe_allow_html=True)
+            # Close inner container and main box
+            st.markdown('</div></div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
