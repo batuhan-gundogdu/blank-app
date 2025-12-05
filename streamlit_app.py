@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import ast
 
 # Custom CSS for better styling
 st.markdown("""
@@ -47,17 +46,25 @@ st.markdown("""
         padding: 1rem;
         margin-bottom: 1.5rem;
     }
-    .stCheckbox > label {
-        font-size: 0.95rem;
-        line-height: 1.5;
+    .stance-group-box {
+        background-color: #ffffff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+        border: 1px solid #e0e0e0;
     }
-    .stButton > button {
+    .stance-group-title {
+        font-size: 1.2rem;
         font-weight: 600;
-        font-size: 1rem;
+        color: #333;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #667eea;
     }
-    h3 {
-        color: #1f77b4;
-        margin-top: 1.5rem;
+    /* Style for content inside group boxes */
+    div.stance-group-box ~ div {
+        margin-left: 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -97,43 +104,34 @@ stance_dict = {1:"Criticism of police and federal detainment practices as abuse 
 28:"Praise for Local Government or Mayor",
 29:"Does not express any politically relevant opinion"}
 
+# B. Group stances by topic
+stance_groups = [
+    {"title": "Police", "indices": [0, 1]},  # 1-2
+    {"title": "Taxes", "indices": [2, 3]},  # 3-4
+    {"title": "Immigration", "indices": [4, 5]},  # 5-6
+    {"title": "Healthcare", "indices": [6, 7]},  # 7-8
+    {"title": "Abortion", "indices": [8, 9]},  # 9-10
+    {"title": "LGBTQ+", "indices": [10, 11]},  # 11-12
+    {"title": "Gun Control", "indices": [12, 13]},  # 13-14
+    {"title": "Military/Defense", "indices": [14, 15]},  # 15-16
+    {"title": "Climate/Energy", "indices": [16, 17]},  # 17-18
+    {"title": "Marijuana", "indices": [18, 19]},  # 19-20
+    {"title": "Political Parties (General)", "indices": [20, 21]},  # 21-22
+    {"title": "Political Leadership (Criticism)", "indices": [22, 23]},  # 23-24
+    {"title": "Political Leadership (Support)", "indices": [24, 25]},  # 25-26
+    {"title": "Local Government", "indices": [26, 27]},  # 27-28
+]
+
 # 0-50 to Alex
 last_label = 0
-stance_dict_reverse = {v: k for k, v in stance_dict.items()} 
 samples_df = pd.read_csv("samples.csv")
 contexts = samples_df["Context"].tolist()[last_label:last_label+50]
 comments = samples_df["Comment"].tolist()[last_label:last_label+50]
-gt = pd.read_csv("ai_gt.csv")
-gts = gt["matched_stances"].tolist()[last_label:last_label+50]
 
-
-sample_stances = []
-for i, row in gt.iterrows():
-    try:
-        matched_stances = ast.literal_eval(row["matched_stances"])
-    except:
-        print("problem with matched_stances")
-        print(row["matched_stances"])
-        break
-    stances = []
-    for stance in matched_stances:
-        try:
-            stances.append(stance_dict_reverse[stance])
-        except:
-            print("problem with stance")
-            print(stance)
-            break
-    sample_stances.append(stances)
-
+# Initialize all labels as zeros (no pre-labeling)
 gts = []
 for i in range(len(contexts)):
-    gt = 28 * [0]
-    if 29 in sample_stances[i]:
-        gts.append(gt)
-        continue
-    for stance in sample_stances[i]:
-        gt[stance - 1] = 1
-    gts.append(gt)
+    gts.append(28 * [0])
 
 def load_data():
     data = []
@@ -195,7 +193,7 @@ current_labels = current_item['labels']
 # -----------------------------------------------------------------------------
 
 # Header with title and progress
-st.markdown("<h1 class='main-header'>📊 VicVox Stance Verification Tool</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>📊 Stance Verification Tool</h1>", unsafe_allow_html=True)
 
 # Progress section with better styling
 progress_pct = st.session_state.current_index / len(st.session_state.data)
@@ -232,46 +230,42 @@ with col_left:
         )
 
 with col_right:
-    st.markdown("### ✅ Verify AI Labels")
-    st.caption("Check or uncheck boxes to modify the stance labels as needed")
+    st.markdown("### ✅ Select Stances")
+    st.caption("Check the boxes for all stances that apply to this comment")
     
     # We use a form so the page doesn't reload on every checkbox click
     with st.form(key='verification_form'):
         
-        # Display stances in a grid (2 columns within the right side) to save space
-        grid_cols = st.columns(2, gap="medium")
-        
         # Dynamic dictionary to hold widget states
         user_selections = {}
         
-        # Count pre-selected items for summary
-        pre_selected_count = sum(current_labels)
-        
-        for i, stance in enumerate(STANCE_LIST):
-            # Determine if this stance was originally labeled (1) or not (0)
-            is_pre_selected = bool(current_labels[i])
+        # Display stances grouped by topic in boxes
+        for group in stance_groups:
+            # Create the group box with title
+            st.markdown(
+                f'<div class="stance-group-box">'
+                f'<div class="stance-group-title">{group["title"]}</div>',
+                unsafe_allow_html=True
+            )
             
-            # Place in grid
-            col_idx = i % 2
-            with grid_cols[col_idx]:
-                # Add visual indicator for pre-selected items
-                if is_pre_selected:
-                    label_with_indicator = f"✓ {stance}"
-                else:
-                    label_with_indicator = stance
-                
-                user_selections[i] = st.checkbox(
-                    label=label_with_indicator,
-                    value=is_pre_selected,
-                    key=f"stance_{st.session_state.current_index}_{i}"
+            # Display checkboxes for stances in this group
+            for idx in group["indices"]:
+                stance_text = STANCE_LIST[idx]
+                user_selections[idx] = st.checkbox(
+                    label=stance_text,
+                    value=False,
+                    key=f"stance_{st.session_state.current_index}_{idx}"
                 )
+            
+            # Close the box div
+            st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
         # Summary and submit button
         col_summary, col_button = st.columns([2, 1])
         with col_summary:
-            st.caption(f"📊 Pre-labeled: **{pre_selected_count}** stance(s) | Review and adjust as needed")
+            st.caption("📊 Select the appropriate stance(s) for this comment")
         
         with col_button:
             # Submit button with better styling
